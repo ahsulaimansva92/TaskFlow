@@ -29,8 +29,8 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
     });
   });
 
-  // Sort by todayOrder
-  todaySubtasks.sort((a, b) => (a.subtask.todayOrder || 0) - (b.subtask.todayOrder || 0));
+  // Sort by todayOrder (default to high number if undefined)
+  todaySubtasks.sort((a, b) => (a.subtask.todayOrder ?? 999) - (b.subtask.todayOrder ?? 999));
 
   const toggleSubtask = (catId: string, taskId: string, subId: string) => {
     const nextCategories = categories.map(c => {
@@ -57,8 +57,8 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
-      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-indigo-100/20 relative overflow-hidden">
+      {/* Header Card */}
+      <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-xl shadow-indigo-100/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-5">
            <Calendar className="w-32 h-32 text-indigo-600" />
         </div>
@@ -78,7 +78,7 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
 
           <div className="w-full md:w-64">
             <div className="flex justify-between items-end mb-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Day Progress</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Progress</span>
               <span className="text-lg font-bold text-indigo-600">{Math.round(progressPercent)}%</span>
             </div>
             <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-100">
@@ -93,7 +93,10 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
 
       {/* Work List */}
       <div className="space-y-4">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-4">Scheduled for today</h3>
+        <div className="flex items-center justify-between px-4">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Priority List</h3>
+          <span className="text-xs text-slate-400">Hover to reorder</span>
+        </div>
         
         {todaySubtasks.length > 0 ? (
           <div className="grid gap-3">
@@ -106,23 +109,27 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
                     : 'border-white hover:border-indigo-100 shadow-sm hover:shadow-lg'
                 }`}
               >
-                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Reorder Buttons */}
+                <div className="flex flex-col gap-1 transition-all">
                   <button 
                     onClick={() => onMoveTodaySubtask(subtask.id, 'up')}
                     disabled={index === 0}
-                    className="p-1 hover:text-indigo-600 text-slate-300 disabled:opacity-0"
+                    className="p-1 hover:text-indigo-600 text-slate-200 disabled:opacity-0 transition-colors"
+                    title="Move Up"
                   >
-                    <ChevronUp className="w-4 h-4" />
+                    <ChevronUp className="w-5 h-5" />
                   </button>
                   <button 
                     onClick={() => onMoveTodaySubtask(subtask.id, 'down')}
                     disabled={index === todaySubtasks.length - 1}
-                    className="p-1 hover:text-indigo-600 text-slate-300 disabled:opacity-0"
+                    className="p-1 hover:text-indigo-600 text-slate-200 disabled:opacity-0 transition-colors"
+                    title="Move Down"
                   >
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-5 h-5" />
                   </button>
                 </div>
 
+                {/* Status Toggle */}
                 <button 
                   onClick={() => toggleSubtask(category.id, task.id, subtask.id)}
                   className={`shrink-0 transition-transform active:scale-90 ${
@@ -132,9 +139,10 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
                   {subtask.completed ? <CheckCircle2 className="w-8 h-8" /> : <Circle className="w-8 h-8" />}
                 </button>
 
+                {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase text-white bg-${category.color}-500 shadow-sm shadow-${category.color}-100`}>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase text-white bg-${category.color}-500 shadow-sm`}>
                       {category.name}
                     </span>
                     <span className="text-[10px] font-bold text-slate-300 uppercase truncate">
@@ -148,7 +156,8 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
                   </h4>
                 </div>
 
-                <div className="shrink-0 flex items-center gap-2 text-slate-400 group-hover:text-indigo-500 transition-colors">
+                {/* Tag */}
+                <div className="shrink-0 hidden sm:flex items-center gap-2 text-slate-400 group-hover:text-indigo-500 transition-colors">
                   <Clock className="w-4 h-4" />
                   <span className="text-xs font-bold uppercase tracking-wider">Due Today</span>
                 </div>
@@ -158,20 +167,21 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
         ) : (
           <div className="py-20 flex flex-col items-center justify-center text-slate-300 bg-white rounded-3xl border border-dashed border-slate-200">
             <Clock className="w-16 h-16 mb-4 opacity-10" />
-            <p className="text-lg font-medium">No work scheduled for today!</p>
-            <p className="text-sm mt-1">Check your projects to assign some due dates.</p>
+            <p className="text-lg font-medium text-slate-400 text-center">Your today's schedule is empty.</p>
+            <p className="text-sm mt-1 text-slate-400 text-center">Add due dates to subtasks to see them here.</p>
           </div>
         )}
       </div>
 
+      {/* Completion Celebration */}
       {completedCount === totalCount && totalCount > 0 && (
-        <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-center gap-4 animate-bounce">
+        <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-center gap-4 animate-in slide-in-from-top-2 duration-700">
            <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
               <CheckCircle className="w-6 h-6" />
            </div>
            <div>
-             <h4 className="text-emerald-800 font-bold">You're all caught up!</h4>
-             <p className="text-emerald-600 text-sm">Every task due today has been completed. Amazing work.</p>
+             <h4 className="text-emerald-800 font-bold">Today's Focus Complete!</h4>
+             <p className="text-emerald-600 text-sm font-medium">You've finished everything you planned for today. Great job!</p>
            </div>
         </div>
       )}

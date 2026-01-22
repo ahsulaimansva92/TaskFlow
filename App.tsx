@@ -17,7 +17,7 @@ const INITIAL_CATEGORIES: Category[] = [
         name: 'Design System Implementation',
         completed: false,
         subtasks: [
-          { id: 'sub-1', name: 'Define color palette', completed: true, dueDate: new Date().toISOString().split('T')[0], todayOrder: 1 },
+          { id: 'sub-1', name: 'Define color palette', completed: true, dueDate: new Date().toISOString().split('T')[0], todayOrder: 0 },
           { id: 'sub-2', name: 'Create typography scales', completed: false },
           { id: 'sub-3', name: 'Build button components', completed: false }
         ]
@@ -28,7 +28,7 @@ const INITIAL_CATEGORIES: Category[] = [
         completed: false,
         subtasks: [
           { id: 'sub-4', name: 'Setup Axios client', completed: true },
-          { id: 'sub-5', name: 'Implement Auth hooks', completed: false, dueDate: new Date().toISOString().split('T')[0], todayOrder: 2 }
+          { id: 'sub-5', name: 'Implement Auth hooks', completed: false, dueDate: new Date().toISOString().split('T')[0], todayOrder: 1 }
         ]
       }
     ]
@@ -58,7 +58,7 @@ const App: React.FC = () => {
   });
   const [activeCategoryId, setActiveCategoryId] = useState<string>(categories[0]?.id || '');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('grid');
-  const [viewMode, setViewMode] = useState<ViewMode>('category');
+  const [viewMode, setViewMode] = useState<ViewMode>('today');
 
   useEffect(() => {
     localStorage.setItem('taskflow_data', JSON.stringify(categories));
@@ -139,42 +139,47 @@ const App: React.FC = () => {
 
   const handleMoveTodaySubtask = (subId: string, direction: 'up' | 'down') => {
     const today = new Date().toISOString().split('T')[0];
-    const todayItems: { catId: string, taskId: string, sub: Subtask }[] = [];
     
-    // Gather all current today subtasks
+    // 1. Extract all subtasks due today
+    let todayItems: { subId: string, todayOrder: number }[] = [];
     categories.forEach(cat => {
       cat.tasks.forEach(task => {
         task.subtasks.forEach(sub => {
           if (sub.dueDate === today) {
-            todayItems.push({ catId: cat.id, taskId: task.id, sub });
+            todayItems.push({ subId: sub.id, todayOrder: sub.todayOrder ?? 9999 });
           }
         });
       });
     });
 
-    // Sort by todayOrder or default to something consistent
-    todayItems.sort((a, b) => (a.sub.todayOrder || 0) - (b.sub.todayOrder || 0));
+    // 2. Sort current items to establish a normalized baseline
+    todayItems.sort((a, b) => a.todayOrder - b.todayOrder);
 
-    const index = todayItems.findIndex(item => item.sub.id === subId);
+    // 3. Find the index of the subtask we want to move
+    const index = todayItems.findIndex(item => item.subId === subId);
     if (index === -1) return;
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === todayItems.length - 1) return;
 
+    // 4. Perform the swap in our local reference array
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    const itemA = todayItems[index];
-    const itemB = todayItems[targetIndex];
+    [todayItems[index], todayItems[targetIndex]] = [todayItems[targetIndex], todayItems[index]];
 
-    // Ensure they both have orders
-    const orderA = itemA.sub.todayOrder || index;
-    const orderB = itemB.sub.todayOrder || targetIndex;
+    // 5. Create a map of the new order
+    const orderMap = new Map();
+    todayItems.forEach((item, idx) => {
+      orderMap.set(item.subId, idx);
+    });
 
+    // 6. Update global state
     setCategories(prev => prev.map(cat => ({
       ...cat,
       tasks: cat.tasks.map(task => ({
         ...task,
         subtasks: task.subtasks.map(sub => {
-          if (sub.id === itemA.sub.id) return { ...sub, todayOrder: orderB };
-          if (sub.id === itemB.sub.id) return { ...sub, todayOrder: orderA };
+          if (orderMap.has(sub.id)) {
+            return { ...sub, todayOrder: orderMap.get(sub.id) };
+          }
           return sub;
         })
       }))
@@ -209,7 +214,7 @@ const App: React.FC = () => {
         <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-indigo-600" />
-            <h1 className="text-xl font-bold tracking-tight">TaskFlow Pro</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-800">TaskFlow Pro</h1>
           </div>
           
           <div className="flex items-center gap-4">
@@ -251,7 +256,7 @@ const App: React.FC = () => {
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-400">
               <FolderPlus className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-lg mb-6">Select or create a category to get started</p>
+              <p className="text-lg mb-6 text-center">Select or create a category to get started</p>
               <button 
                 onClick={() => {
                    const name = window.prompt("Enter your first project name:");
