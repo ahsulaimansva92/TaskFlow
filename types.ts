@@ -5,6 +5,8 @@ export interface Subtask {
   completed: boolean;
   dueDate?: string; // Format: YYYY-MM-DD
   todayOrder?: number; // Used for reordering in Today's Focus view
+  isDaily?: boolean; // Whether the task recurs every day
+  lastCompletedDate?: string; // Format: YYYY-MM-DD, tracks the last day it was done
 }
 
 export interface Task {

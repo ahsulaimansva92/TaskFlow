@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Category, Subtask, Task } from '../types';
-import { Calendar, CheckCircle2, Circle, Clock, CheckCircle, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Clock, Sparkles, ArrowUp, ArrowDown, Repeat } from 'lucide-react';
 
 interface TodayWorkProps {
   categories: Category[];
@@ -12,32 +12,50 @@ interface TodayWorkProps {
 const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveTodaySubtask }) => {
   const today = new Date().toISOString().split('T')[0];
 
-  // Flatten and filter subtasks due today
-  let todaySubtasks: Array<{
+  interface FlatItem {
     category: Category;
     task: Task;
     subtask: Subtask;
-  }> = [];
+    isDaily: boolean;
+    isCompletedToday: boolean;
+  }
+
+  // Flatten and separate daily and one-off subtasks
+  let dailyTasks: FlatItem[] = [];
+  let scheduledTasks: FlatItem[] = [];
 
   categories.forEach(cat => {
     cat.tasks.forEach(task => {
       task.subtasks.forEach(sub => {
-        if (sub.dueDate === today) {
-          todaySubtasks.push({ category: cat, task, subtask: sub });
+        const item: FlatItem = {
+          category: cat,
+          task,
+          subtask: sub,
+          isDaily: !!sub.isDaily,
+          isCompletedToday: sub.isDaily 
+            ? sub.lastCompletedDate === today
+            : (!!sub.completed && sub.dueDate === today)
+        };
+
+        if (sub.isDaily) {
+          dailyTasks.push(item);
+        } else if (sub.dueDate === today) {
+          scheduledTasks.push(item);
         }
       });
     });
   });
 
-  // Sort by Completion Status (Incomplete first) THEN todayOrder
-  todaySubtasks.sort((a, b) => {
-    if (a.subtask.completed !== b.subtask.completed) {
-      return a.subtask.completed ? 1 : -1;
-    }
+  // Sort scheduled by completion status THEN todayOrder
+  scheduledTasks.sort((a, b) => {
+    if (a.isCompletedToday !== b.isCompletedToday) return a.isCompletedToday ? 1 : -1;
     return (a.subtask.todayOrder ?? 999) - (b.subtask.todayOrder ?? 999);
   });
 
-  const toggleSubtask = (catId: string, taskId: string, subId: string) => {
+  // Sort daily tasks by completion status as well
+  dailyTasks.sort((a, b) => a.isCompletedToday === b.isCompletedToday ? 0 : (a.isCompletedToday ? 1 : -1));
+
+  const toggleTodayItem = (catId: string, taskId: string, subId: string, isDaily: boolean) => {
     const nextCategories = categories.map(c => {
       if (c.id !== catId) return c;
       return {
@@ -46,9 +64,21 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
           if (t.id !== taskId) return t;
           return {
             ...t,
-            subtasks: t.subtasks.map(s => 
-              s.id === subId ? { ...s, completed: !s.completed } : s
-            )
+            subtasks: t.subtasks.map(s => {
+              if (s.id !== subId) return s;
+              
+              if (isDaily) {
+                const wasCompleted = s.lastCompletedDate === today;
+                return { 
+                  ...s, 
+                  lastCompletedDate: wasCompleted ? undefined : today,
+                  // We also sync regular completed state for consistency in project view
+                  completed: !wasCompleted 
+                };
+              } else {
+                return { ...s, completed: !s.completed };
+              }
+            })
           };
         })
       };
@@ -75,9 +105,100 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
     onUpdate(nextCategories);
   };
 
-  const completedCount = todaySubtasks.filter(item => item.subtask.completed).length;
-  const totalCount = todaySubtasks.length;
+  const allItems = [...dailyTasks, ...scheduledTasks];
+  const completedCount = allItems.filter(item => item.isCompletedToday).length;
+  const totalCount = allItems.length;
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+  const renderTaskItem = (item: FlatItem, index: number, list: FlatItem[]) => {
+    const { category, task, subtask, isDaily, isCompletedToday } = item;
+    
+    return (
+      <div 
+        key={subtask.id}
+        className={`group bg-white p-2 rounded-3xl border-2 transition-all duration-500 flex items-center gap-2 ${
+          isCompletedToday 
+            ? 'border-emerald-50 bg-emerald-50/10 opacity-60 grayscale-[0.5]' 
+            : 'border-white hover:border-indigo-100 shadow-sm hover:shadow-xl'
+        }`}
+      >
+        {/* Reorder Buttons Section (Only for scheduled) */}
+        {!isDaily && (
+          <div className="flex flex-col gap-1 p-2 bg-slate-50/50 rounded-2xl group-hover:bg-indigo-50/30 transition-colors">
+            <button 
+              onClick={() => onMoveTodaySubtask(subtask.id, 'up')}
+              disabled={index === 0}
+              className={`p-2 rounded-xl transition-all ${
+                index === 0 ? 'text-slate-100 cursor-not-allowed' : 'text-slate-400 hover:bg-white hover:text-indigo-600'
+              }`}
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
+            <div className="text-[10px] font-black text-slate-300 text-center select-none">{index + 1}</div>
+            <button 
+              onClick={() => onMoveTodaySubtask(subtask.id, 'down')}
+              disabled={index === list.length - 1}
+              className={`p-2 rounded-xl transition-all ${
+                index === list.length - 1 ? 'text-slate-100 cursor-not-allowed' : 'text-slate-400 hover:bg-white hover:text-indigo-600'
+              }`}
+            >
+              <ArrowDown className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Status Toggle */}
+        <button 
+          onClick={() => toggleTodayItem(category.id, task.id, subtask.id, isDaily)}
+          className={`shrink-0 ml-2 transition-transform active:scale-90 ${
+            isCompletedToday ? 'text-emerald-500' : 'text-slate-200 group-hover:text-indigo-400'
+          }`}
+        >
+          <div className={`${isCompletedToday ? 'bg-emerald-100' : 'bg-slate-50 group-hover:bg-indigo-50'} rounded-2xl p-3`}>
+             {isCompletedToday ? <CheckCircle2 className="w-8 h-8" /> : <Circle className="w-8 h-8" />}
+          </div>
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 px-2">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter text-white bg-${category.color}-500 shadow-sm`}>
+              {category.name}
+            </span>
+            <span className="text-[10px] font-bold text-slate-300 uppercase truncate">
+              {task.name}
+            </span>
+            {isDaily && <span className="flex items-center gap-1 text-[8px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">
+              <Repeat className="w-2.5 h-2.5" /> Daily
+            </span>}
+          </div>
+          <h4 className={`text-xl font-bold truncate tracking-tight transition-colors ${
+            isCompletedToday ? 'text-slate-300 line-through' : 'text-slate-800'
+          }`}>
+            {subtask.name}
+          </h4>
+        </div>
+
+        {/* Reschedule Control (Only for non-daily) */}
+        {!isDaily && (
+          <div className="shrink-0 flex items-center gap-2 pr-4">
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1 group-hover:text-indigo-400">Reschedule</span>
+              <div className="relative flex items-center gap-1.5 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-100 px-3 py-1.5 rounded-xl transition-all">
+                <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                <input 
+                  type="date"
+                  value={subtask.dueDate || today}
+                  onChange={(e) => updateSubtaskDate(category.id, task.id, subtask.id, e.target.value)}
+                  className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer focus:text-indigo-600 transition-colors uppercase"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -100,7 +221,7 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
             <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-none">
               Today's Focus
             </h2>
-            <p className="text-slate-400 mt-4 font-medium flex items-center gap-2">
+            <p className="text-slate-400 mt-4 font-medium flex items-center gap-2 text-sm">
               <Calendar className="w-4 h-4 text-indigo-400" />
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
@@ -108,7 +229,7 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
 
           <div className="w-full md:w-72 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
             <div className="flex justify-between items-end mb-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Completion Progress</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Daily Completion</span>
               <span className="text-xl font-black text-indigo-600">{Math.round(progressPercent)}%</span>
             </div>
             <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
@@ -121,152 +242,73 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
         </div>
       </div>
 
-      {/* Work List */}
-      <div className="space-y-4">
+      {/* Daily Tasks Section */}
+      {dailyTasks.length > 0 && (
+        <section className="space-y-4">
+           <div className="flex items-center gap-3 px-6">
+              <Repeat className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Daily Recurring Habits</h3>
+           </div>
+           <div className="grid gap-4">
+              {dailyTasks.map((item, idx) => renderTaskItem(item, idx, dailyTasks))}
+           </div>
+        </section>
+      )}
+
+      {/* Priority Stack Section */}
+      <section className="space-y-4">
         <div className="flex items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-slate-400" />
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Daily Priority Stack</h3>
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-slate-400" />
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Today's Priority Stack</h3>
           </div>
           <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-            {todaySubtasks.length} {todaySubtasks.length === 1 ? 'Task' : 'Tasks'} Remaining
+            {scheduledTasks.length} {scheduledTasks.length === 1 ? 'Entry' : 'Entries'} Today
           </span>
         </div>
         
-        {todaySubtasks.length > 0 ? (
+        {scheduledTasks.length > 0 ? (
           <div className="grid gap-4">
-            {todaySubtasks.map(({ category, task, subtask }, index) => {
-              const isFirstCompleted = subtask.completed && (index === 0 || !todaySubtasks[index - 1].subtask.completed);
-              
+            {scheduledTasks.map((item, index) => {
+              const isFirstCompleted = item.isCompletedToday && (index === 0 || !scheduledTasks[index - 1].isCompletedToday);
               return (
-                <React.Fragment key={subtask.id}>
+                <React.Fragment key={item.subtask.id}>
                   {isFirstCompleted && (
-                    <div className="mt-8 mb-4 flex items-center gap-4 px-6 opacity-40">
+                    <div className="mt-6 mb-2 flex items-center gap-4 px-6 opacity-30">
                       <div className="h-px flex-1 bg-slate-300" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Completed Tasks</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Completed Stack</span>
                       <div className="h-px flex-1 bg-slate-300" />
                     </div>
                   )}
-                  
-                  <div 
-                    className={`group bg-white p-2 rounded-3xl border-2 transition-all duration-500 flex items-center gap-2 ${
-                      subtask.completed 
-                        ? 'border-emerald-50 bg-emerald-50/10 opacity-60 grayscale-[0.5]' 
-                        : 'border-white hover:border-indigo-100 shadow-sm hover:shadow-xl'
-                    }`}
-                  >
-                    {/* Reorder Buttons Section */}
-                    <div className="flex flex-col gap-1 p-2 bg-slate-50/50 rounded-2xl group-hover:bg-indigo-50/30 transition-colors">
-                      <button 
-                        onClick={() => onMoveTodaySubtask(subtask.id, 'up')}
-                        disabled={index === 0}
-                        className={`p-2 rounded-xl transition-all ${
-                          index === 0 
-                            ? 'text-slate-100 cursor-not-allowed' 
-                            : 'text-slate-400 hover:bg-white hover:text-indigo-600 hover:shadow-md'
-                        }`}
-                        title="Move Higher"
-                      >
-                        <ArrowUp className="w-4 h-4" />
-                      </button>
-                      <div className="text-[10px] font-black text-slate-300 text-center select-none">
-                        {index + 1}
-                      </div>
-                      <button 
-                        onClick={() => onMoveTodaySubtask(subtask.id, 'down')}
-                        disabled={index === todaySubtasks.length - 1}
-                        className={`p-2 rounded-xl transition-all ${
-                          index === todaySubtasks.length - 1 
-                            ? 'text-slate-100 cursor-not-allowed' 
-                            : 'text-slate-400 hover:bg-white hover:text-indigo-600 hover:shadow-md'
-                        }`}
-                        title="Move Lower"
-                      >
-                        <ArrowDown className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Status Toggle */}
-                    <button 
-                      onClick={() => toggleSubtask(category.id, task.id, subtask.id)}
-                      className={`shrink-0 ml-2 transition-transform active:scale-90 ${
-                        subtask.completed ? 'text-emerald-500' : 'text-slate-200 group-hover:text-indigo-400'
-                      }`}
-                    >
-                      {subtask.completed ? (
-                        <div className="bg-emerald-100 rounded-2xl p-3"><CheckCircle2 className="w-8 h-8" /></div>
-                      ) : (
-                        <div className="bg-slate-50 rounded-2xl p-3 group-hover:bg-indigo-50"><Circle className="w-8 h-8" /></div>
-                      )}
-                    </button>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 px-2">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter text-white bg-${category.color}-500 shadow-sm`}>
-                          {category.name}
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-300 uppercase truncate">
-                          {task.name}
-                        </span>
-                      </div>
-                      <h4 className={`text-xl font-bold truncate tracking-tight transition-colors ${
-                        subtask.completed ? 'text-slate-300 line-through' : 'text-slate-800'
-                      }`}>
-                        {subtask.name}
-                      </h4>
-                    </div>
-
-                    {/* Reschedule Control */}
-                    <div className="shrink-0 flex items-center gap-2 pr-4">
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors">Reschedule</span>
-                        <div className="relative flex items-center gap-1.5 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-100 px-3 py-1.5 rounded-xl transition-all">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                          <input 
-                            type="date"
-                            value={subtask.dueDate || today}
-                            onChange={(e) => updateSubtaskDate(category.id, task.id, subtask.id, e.target.value)}
-                            className="text-[10px] font-bold text-slate-600 bg-transparent border-none outline-none cursor-pointer focus:text-indigo-600 transition-colors uppercase"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {renderTaskItem(item, index, scheduledTasks)}
                 </React.Fragment>
               );
             })}
           </div>
         ) : (
-          <div className="py-24 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
-            <div className="bg-slate-50 p-6 rounded-full mb-6">
-              <Clock className="w-12 h-12 text-slate-200" />
+          !dailyTasks.length && (
+            <div className="py-24 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
+              <div className="bg-slate-50 p-6 rounded-full mb-6">
+                <Clock className="w-12 h-12 text-slate-200" />
+              </div>
+              <p className="text-xl font-bold text-slate-400">Clear Schedule!</p>
+              <p className="text-sm mt-1 text-slate-300 max-w-xs text-center">
+                Assign subtasks to today or mark some as recurring daily.
+              </p>
             </div>
-            <p className="text-xl font-bold text-slate-400">Clear Schedule!</p>
-            <p className="text-sm mt-1 text-slate-300 max-w-xs text-center">
-              You haven't assigned any subtasks to today. Go to your projects and set some due dates.
-            </p>
-          </div>
+          )
         )}
-      </div>
+      </section>
 
-      {/* Completion Celebration Footer */}
+      {/* Celebration Footer */}
       {completedCount === totalCount && totalCount > 0 && (
         <div className="bg-emerald-500 rounded-[2rem] p-8 text-white flex flex-col md:flex-row items-center gap-6 shadow-2xl shadow-emerald-200 animate-in slide-in-from-top-4 duration-700">
            <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
               <Sparkles className="w-8 h-8" />
            </div>
            <div className="text-center md:text-left">
-             <h4 className="text-2xl font-black">Daily Objective Reached</h4>
-             <p className="text-emerald-50 text-sm font-medium opacity-90">Outstanding performance. You've cleared your entire priority stack for today.</p>
-           </div>
-           <div className="md:ml-auto">
-              <button 
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="bg-white text-emerald-600 px-6 py-2 rounded-xl font-bold shadow-lg hover:scale-105 transition-transform"
-              >
-                Back to Top
-              </button>
+             <h4 className="text-2xl font-black">Day Concluded Successfully</h4>
+             <p className="text-emerald-50 text-sm font-medium opacity-90">All daily habits and scheduled tasks are marked as complete. Excellent job!</p>
            </div>
         </div>
       )}

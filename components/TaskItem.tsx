@@ -12,7 +12,7 @@ import {
   ChevronDown, 
   ChevronLeft, 
   ChevronRight,
-  Move,
+  Repeat,
   Calendar
 } from 'lucide-react';
 import { Task, Subtask, LayoutMode } from '../types';
@@ -54,6 +54,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const toggleSubtask = (subId: string) => {
     const updatedSubtasks = task.subtasks.map(s => 
       s.id === subId ? { ...s, completed: !s.completed } : s
+    );
+    onUpdate({ ...task, subtasks: updatedSubtasks });
+  };
+
+  const toggleDaily = (subId: string) => {
+    const updatedSubtasks = task.subtasks.map(s => 
+      s.id === subId ? { ...s, isDaily: !s.isDaily } : s
     );
     onUpdate({ ...task, subtasks: updatedSubtasks });
   };
@@ -104,16 +111,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const subtasksTotal = task.subtasks.length;
   const isDone = task.completed || (subtasksTotal > 0 && subtasksCompleted === subtasksTotal);
 
-  // Check movement boundaries
-  const canMoveUp = taskIndex >= gridCols;
-  const canMoveDown = taskIndex + gridCols < totalTasks;
-  const canMoveLeft = taskIndex % gridCols !== 0;
-  const canMoveRight = (taskIndex + 1) % gridCols !== 0 && taskIndex < totalTasks - 1;
-
-  // Simple reordering for list mode
-  const canMovePrev = taskIndex > 0;
-  const canMoveNext = taskIndex < totalTasks - 1;
-
   const isToday = (dateStr: string) => {
     const today = new Date().toISOString().split('T')[0];
     return dateStr === today;
@@ -127,21 +124,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
       onMouseEnter={() => setShowOrderControls(true)}
       onMouseLeave={() => setShowOrderControls(false)}
     >
-      {/* Order Controls Overlay (Visible on Hover) */}
+      {/* Order Controls Overlay */}
       <div className={`absolute top-2 right-12 z-10 flex gap-1 transition-opacity duration-200 ${showOrderControls ? 'opacity-100' : 'opacity-0'}`}>
         {layoutMode === 'grid' ? (
           <div className="grid grid-cols-3 grid-rows-2 bg-white/90 backdrop-blur shadow-lg border border-slate-200 rounded-lg p-1">
             <div />
-            <button onClick={() => onMove(-gridCols)} disabled={!canMoveUp} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
+            <button onClick={() => onMove(-gridCols)} disabled={taskIndex < gridCols} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
             <div />
-            <button onClick={() => onMove(-1)} disabled={!canMoveLeft} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={() => onMove(gridCols)} disabled={!canMoveDown} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
-            <button onClick={() => onMove(1)} disabled={!canMoveRight} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => onMove(-1)} disabled={taskIndex % gridCols === 0} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => onMove(gridCols)} disabled={taskIndex + gridCols >= totalTasks} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
+            <button onClick={() => onMove(1)} disabled={(taskIndex + 1) % gridCols === 0 || taskIndex >= totalTasks - 1} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
           </div>
         ) : (
           <div className="flex bg-white/90 backdrop-blur shadow-lg border border-slate-200 rounded-lg p-1">
-            <button onClick={() => onMove(-1)} disabled={!canMovePrev} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
-            <button onClick={() => onMove(1)} disabled={!canMoveNext} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
+            <button onClick={() => onMove(-1)} disabled={taskIndex === 0} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
+            <button onClick={() => onMove(1)} disabled={taskIndex === totalTasks - 1} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
           </div>
         )}
       </div>
@@ -174,7 +171,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </button>
       </div>
 
-      {/* Subtasks Section - Always Expanded */}
+      {/* Subtasks Section */}
       <div className="bg-slate-50/50 p-4 space-y-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtasks checklist</span>
@@ -209,7 +206,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   </span>
                 </div>
                 
-                <div className="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1.5 opacity-0 group-hover/sub:opacity-100 transition-opacity">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleDaily(sub.id); }}
+                    className={`p-1 rounded-md transition-colors ${sub.isDaily ? 'bg-indigo-100 text-indigo-600' : 'text-slate-300 hover:text-indigo-400'}`}
+                    title="Mark as Daily Recurring"
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                  </button>
                   <div className="flex flex-col">
                     <button 
                       onClick={(e) => { e.stopPropagation(); onMoveSubtask(sub.id, -1); }} 
@@ -236,20 +240,29 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </div>
 
               {/* Subtask Meta - Due Date */}
-              <div className="mt-2 pl-7 flex items-center gap-2">
-                <div className="relative group/date flex items-center gap-1.5">
-                  <Calendar className={`w-3.5 h-3.5 ${sub.dueDate ? (isToday(sub.dueDate) ? 'text-amber-500' : 'text-indigo-500') : 'text-slate-300'}`} />
-                  <input 
-                    type="date"
-                    value={sub.dueDate || ''}
-                    onChange={(e) => updateSubtaskDate(sub.id, e.target.value)}
-                    className="text-[10px] font-semibold text-slate-500 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600 focus:text-indigo-600 transition-colors uppercase"
-                  />
-                  {sub.dueDate && isToday(sub.dueDate) && (
-                    <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md font-bold uppercase animate-pulse">Today</span>
-                  )}
+              {!sub.isDaily && (
+                <div className="mt-2 pl-7 flex items-center gap-2">
+                  <div className="relative group/date flex items-center gap-1.5">
+                    <Calendar className={`w-3.5 h-3.5 ${sub.dueDate ? (isToday(sub.dueDate) ? 'text-amber-500' : 'text-indigo-500') : 'text-slate-300'}`} />
+                    <input 
+                      type="date"
+                      value={sub.dueDate || ''}
+                      onChange={(e) => updateSubtaskDate(sub.id, e.target.value)}
+                      className="text-[10px] font-semibold text-slate-500 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600 focus:text-indigo-600 transition-colors uppercase"
+                    />
+                    {sub.dueDate && isToday(sub.dueDate) && (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md font-bold uppercase animate-pulse">Today</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {sub.isDaily && (
+                <div className="mt-2 pl-7 flex items-center gap-1.5">
+                   <Repeat className="w-3 h-3 text-indigo-400" />
+                   <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Daily Recurring</span>
+                </div>
+              )}
             </div>
           ))}
 
