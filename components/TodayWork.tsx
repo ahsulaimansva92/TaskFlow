@@ -201,7 +201,7 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       {/* Header Card */}
       <div className="bg-white rounded-[2.5rem] p-8 md:p-10 border border-slate-100 shadow-xl shadow-indigo-100/30 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
@@ -229,7 +229,7 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
 
           <div className="w-full md:w-72 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
             <div className="flex justify-between items-end mb-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Daily Completion</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Total Completion</span>
               <span className="text-xl font-black text-indigo-600">{Math.round(progressPercent)}%</span>
             </div>
             <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
@@ -242,28 +242,15 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
         </div>
       </div>
 
-      {/* Daily Tasks Section */}
-      {dailyTasks.length > 0 && (
-        <section className="space-y-4">
-           <div className="flex items-center gap-3 px-6">
-              <Repeat className="w-5 h-5 text-indigo-500" />
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Daily Recurring Habits</h3>
-           </div>
-           <div className="grid gap-4">
-              {dailyTasks.map((item, idx) => renderTaskItem(item, idx, dailyTasks))}
-           </div>
-        </section>
-      )}
-
-      {/* Priority Stack Section */}
+      {/* Priority Stack Section (Top) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-slate-400" />
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Today's Priority Stack</h3>
+            <Clock className="w-5 h-5 text-indigo-500" />
+            <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">Today's Priority Stack</h3>
           </div>
           <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-            {scheduledTasks.length} {scheduledTasks.length === 1 ? 'Entry' : 'Entries'} Today
+            {scheduledTasks.length} {scheduledTasks.length === 1 ? 'Entry' : 'Entries'}
           </span>
         </div>
         
@@ -286,19 +273,41 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
             })}
           </div>
         ) : (
-          !dailyTasks.length && (
-            <div className="py-24 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
-              <div className="bg-slate-50 p-6 rounded-full mb-6">
-                <Clock className="w-12 h-12 text-slate-200" />
-              </div>
-              <p className="text-xl font-bold text-slate-400">Clear Schedule!</p>
-              <p className="text-sm mt-1 text-slate-300 max-w-xs text-center">
-                Assign subtasks to today or mark some as recurring daily.
-              </p>
-            </div>
-          )
+          <div className="py-12 flex flex-col items-center justify-center text-slate-300 bg-white/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+            <p className="text-sm font-bold text-slate-400">No priority tasks for today.</p>
+          </div>
         )}
       </section>
+
+      {/* Daily Recurring Habits Section (Bottom) */}
+      <section className="space-y-4">
+         <div className="flex items-center gap-3 px-6">
+            <Repeat className="w-5 h-5 text-indigo-500" />
+            <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">Daily Recurring Habits</h3>
+         </div>
+         {dailyTasks.length > 0 ? (
+           <div className="grid gap-4">
+              {dailyTasks.map((item, idx) => renderTaskItem(item, idx, dailyTasks))}
+           </div>
+         ) : (
+           <div className="py-12 flex flex-col items-center justify-center text-slate-300 bg-white/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+             <p className="text-sm font-bold text-slate-400">No daily habits tracked yet.</p>
+           </div>
+         )}
+      </section>
+
+      {/* Global Empty State */}
+      {totalCount === 0 && (
+        <div className="py-24 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
+          <div className="bg-slate-50 p-6 rounded-full mb-6">
+            <Clock className="w-12 h-12 text-slate-200" />
+          </div>
+          <p className="text-xl font-bold text-slate-400">Your Focus is Clear</p>
+          <p className="text-sm mt-1 text-slate-300 max-w-xs text-center">
+            Go to your project categories and assign some subtasks a due date for today or mark them as daily habits.
+          </p>
+        </div>
+      )}
 
       {/* Celebration Footer */}
       {completedCount === totalCount && totalCount > 0 && (
@@ -307,8 +316,8 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
               <Sparkles className="w-8 h-8" />
            </div>
            <div className="text-center md:text-left">
-             <h4 className="text-2xl font-black">Day Concluded Successfully</h4>
-             <p className="text-emerald-50 text-sm font-medium opacity-90">All daily habits and scheduled tasks are marked as complete. Excellent job!</p>
+             <h4 className="text-2xl font-black">Daily Objective Achieved</h4>
+             <p className="text-emerald-50 text-sm font-medium opacity-90">Outstanding! You've successfully cleared both your habits and your priorities for today.</p>
            </div>
         </div>
       )}
