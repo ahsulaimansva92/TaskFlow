@@ -140,45 +140,53 @@ const App: React.FC = () => {
   const handleMoveTodaySubtask = (subId: string, direction: 'up' | 'down') => {
     const today = new Date().toISOString().split('T')[0];
     
-    // 1. Extract all subtasks due today
-    let todayItems: { subId: string, todayOrder: number }[] = [];
+    // 1. Gather all subtasks due today
+    let items: { subId: string, completed: boolean, currentOrder: number }[] = [];
     categories.forEach(cat => {
       cat.tasks.forEach(task => {
         task.subtasks.forEach(sub => {
           if (sub.dueDate === today) {
-            todayItems.push({ subId: sub.id, todayOrder: sub.todayOrder ?? 9999 });
+            items.push({ 
+              subId: sub.id, 
+              completed: sub.completed,
+              currentOrder: sub.todayOrder ?? 9999 
+            });
           }
         });
       });
     });
 
-    // 2. Sort current items to establish a normalized baseline
-    todayItems.sort((a, b) => a.todayOrder - b.todayOrder);
-
-    // 3. Find the index of the subtask we want to move
-    const index = todayItems.findIndex(item => item.subId === subId);
-    if (index === -1) return;
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === todayItems.length - 1) return;
-
-    // 4. Perform the swap in our local reference array
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    [todayItems[index], todayItems[targetIndex]] = [todayItems[targetIndex], todayItems[index]];
-
-    // 5. Create a map of the new order
-    const orderMap = new Map();
-    todayItems.forEach((item, idx) => {
-      orderMap.set(item.subId, idx);
+    // 2. Sort by completion status AND current order to match the UI visual state
+    items.sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      return a.currentOrder - b.currentOrder;
     });
 
-    // 6. Update global state
+    // 3. Perform movement in a temporary array
+    const currentIndex = items.findIndex(i => i.subId === subId);
+    if (currentIndex === -1) return;
+    
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    // Optional: Only allow moving within the same group (completed/incomplete) 
+    // or allow swapping across. User requested "move up/down", so swapping across is fine.
+    [items[currentIndex], items[targetIndex]] = [items[targetIndex], items[currentIndex]];
+
+    // 4. Create a final mapping of ID -> New Order Index
+    const newOrderMap = new Map<string, number>();
+    items.forEach((item, index) => {
+      newOrderMap.set(item.subId, index);
+    });
+
+    // 5. Apply the new ordering to all subtasks due today globally
     setCategories(prev => prev.map(cat => ({
       ...cat,
       tasks: cat.tasks.map(task => ({
         ...task,
         subtasks: task.subtasks.map(sub => {
-          if (orderMap.has(sub.id)) {
-            return { ...sub, todayOrder: orderMap.get(sub.id) };
+          if (newOrderMap.has(sub.id)) {
+            return { ...sub, todayOrder: newOrderMap.get(sub.id) };
           }
           return sub;
         })
@@ -211,7 +219,7 @@ const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-slate-200 shrink-0">
+        <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-indigo-600" />
             <h1 className="text-xl font-bold tracking-tight text-slate-800">TaskFlow Pro</h1>
