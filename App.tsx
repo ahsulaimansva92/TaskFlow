@@ -90,6 +90,20 @@ const App: React.FC = () => {
     setCategories(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
   };
 
+  const handleMoveCategory = (id: string, direction: 'up' | 'down') => {
+    setCategories(prev => {
+      const index = prev.findIndex(c => c.id === id);
+      if (index === -1) return prev;
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+
+      const newCategories = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newCategories[index], newCategories[targetIndex]] = [newCategories[targetIndex], newCategories[index]];
+      return newCategories;
+    });
+  };
+
   const updateCategories = (updatedCategories: Category[]) => {
     setCategories(updatedCategories);
   };
@@ -104,6 +118,7 @@ const App: React.FC = () => {
         onAdd={handleAddCategory}
         onDelete={handleDeleteCategory}
         onRename={handleUpdateCategoryName}
+        onMove={handleMoveCategory}
       />
 
       {/* Main Content Area */}
@@ -149,7 +164,6 @@ const App: React.FC = () => {
               <p className="text-lg mb-6">Select or create a category to get started</p>
               <button 
                 onClick={() => {
-                   // A generic way to trigger the "add" interaction if none exist
                    const name = window.prompt("Enter your first project name:");
                    if(name) handleAddCategory(name);
                 }}
