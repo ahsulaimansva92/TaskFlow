@@ -25,4 +25,4 @@ export interface Category {
 }
 
 export type LayoutMode = 'grid' | 'list';
-export type ViewMode = 'category' | 'today';
+export type ViewMode = 'category' | 'today' | 'unassigned';

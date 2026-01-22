@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Check, X, FolderPlus, ChevronUp, ChevronDown, Calendar } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, FolderPlus, ChevronUp, ChevronDown, Calendar, Inbox } from 'lucide-react';
 import { Category, ViewMode } from '../types';
 
 interface SidebarProps {
@@ -9,6 +9,7 @@ interface SidebarProps {
   viewMode: ViewMode;
   onSelect: (id: string) => void;
   onSelectToday: () => void;
+  onSelectUnassigned: () => void;
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
@@ -21,6 +22,7 @@ const CategorySidebar: React.FC<SidebarProps> = ({
   viewMode,
   onSelect, 
   onSelectToday,
+  onSelectUnassigned,
   onAdd, 
   onDelete, 
   onRename, 
@@ -71,7 +73,7 @@ const CategorySidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-full md:w-64 flex flex-col bg-white border-r border-slate-200 shrink-0 h-48 md:h-full">
       {/* Primary Views */}
-      <div className="p-4 space-y-1">
+      <div className="p-4 space-y-2">
         <button
           onClick={onSelectToday}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
@@ -80,6 +82,15 @@ const CategorySidebar: React.FC<SidebarProps> = ({
         >
           <Calendar className="w-5 h-5" />
           <span className="font-semibold text-sm">Today's Focus</span>
+        </button>
+        <button
+          onClick={onSelectUnassigned}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+            viewMode === 'unassigned' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'hover:bg-slate-50 text-slate-600'
+          }`}
+        >
+          <Inbox className="w-5 h-5" />
+          <span className="font-semibold text-sm">Unassigned Tasks</span>
         </button>
       </div>
 

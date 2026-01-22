@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, FolderPlus, CheckCircle2, Circle, Sparkles, LayoutGrid, List as ListIcon, ChevronRight, LayoutDashboard, Calendar } from 'lucide-react';
+import { Plus, Trash2, FolderPlus, CheckCircle2, Circle, Sparkles, LayoutGrid, List as ListIcon, ChevronRight, LayoutDashboard, Calendar, Inbox } from 'lucide-react';
 import { Category, Task, Subtask, LayoutMode, ViewMode } from './types';
 import CategorySidebar from './components/CategorySidebar';
 import TaskBoard from './components/TaskBoard';
 import TodayWork from './components/TodayWork';
+import UnassignedTasks from './components/UnassignedTasks';
 
 const INITIAL_CATEGORIES: Category[] = [
   {
@@ -210,6 +211,7 @@ const App: React.FC = () => {
           setViewMode('category');
         }}
         onSelectToday={() => setViewMode('today')}
+        onSelectUnassigned={() => setViewMode('unassigned')}
         onAdd={handleAddCategory}
         onDelete={handleDeleteCategory}
         onRename={handleUpdateCategoryName}
@@ -250,6 +252,11 @@ const App: React.FC = () => {
               categories={categories} 
               onUpdate={updateCategories}
               onMoveTodaySubtask={handleMoveTodaySubtask}
+            />
+          ) : viewMode === 'unassigned' ? (
+            <UnassignedTasks 
+              categories={categories}
+              onUpdate={updateCategories}
             />
           ) : activeCategory ? (
             <TaskBoard 
