@@ -9,14 +9,26 @@ interface BoardProps {
   categories: Category[];
   onUpdate: (categories: Category[]) => void;
   onRenameCategory: (id: string, newName: string) => void;
+  onMoveTask: (categoryId: string, taskId: string, delta: number) => void;
+  onMoveSubtask: (categoryId: string, taskId: string, subId: string, delta: number) => void;
   layoutMode: LayoutMode;
 }
 
-const TaskBoard: React.FC<BoardProps> = ({ category, categories, onUpdate, onRenameCategory, layoutMode }) => {
+const TaskBoard: React.FC<BoardProps> = ({ 
+  category, 
+  categories, 
+  onUpdate, 
+  onRenameCategory, 
+  onMoveTask,
+  onMoveSubtask,
+  layoutMode 
+}) => {
   const [newTaskName, setNewTaskName] = useState('');
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [headerEditValue, setHeaderEditValue] = useState(category.name);
+  const [gridCols, setGridCols] = useState(1);
   const headerInputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isEditingHeader && headerInputRef.current) {
@@ -28,6 +40,23 @@ const TaskBoard: React.FC<BoardProps> = ({ category, categories, onUpdate, onRen
   useEffect(() => {
     setHeaderEditValue(category.name);
   }, [category.id, category.name]);
+
+  // Handle responsive column detection for precise 4-way movement
+  useEffect(() => {
+    const updateCols = () => {
+      if (layoutMode === 'list') {
+        setGridCols(1);
+      } else {
+        const width = window.innerWidth;
+        if (width >= 1280) setGridCols(3); // xl
+        else if (width >= 1024) setGridCols(2); // lg
+        else setGridCols(1);
+      }
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, [layoutMode]);
 
   const handleAddTask = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -143,17 +172,26 @@ const TaskBoard: React.FC<BoardProps> = ({ category, categories, onUpdate, onRen
 
       {/* Tasks Grid/List */}
       {category.tasks.length > 0 ? (
-        <div className={layoutMode === 'grid' 
-          ? "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6" 
-          : "space-y-4"
-        }>
-          {category.tasks.map(task => (
+        <div 
+          ref={gridRef}
+          className={layoutMode === 'grid' 
+            ? "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6" 
+            : "space-y-4"
+          }
+        >
+          {category.tasks.map((task, index) => (
             <TaskItem 
               key={task.id} 
               task={task} 
               categoryName={category.name}
               onUpdate={handleUpdateTask}
               onDelete={handleDeleteTask}
+              onMove={(delta) => onMoveTask(category.id, task.id, delta)}
+              onMoveSubtask={(subId, delta) => onMoveSubtask(category.id, task.id, subId, delta)}
+              taskIndex={index}
+              totalTasks={category.tasks.length}
+              gridCols={gridCols}
+              layoutMode={layoutMode}
             />
           ))}
         </div>

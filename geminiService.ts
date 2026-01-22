@@ -1,7 +1,8 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Updated initialization to strictly follow standard Gemini API guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateSubtasksForTask = async (taskName: string, categoryName: string): Promise<string[]> => {
   try {

@@ -1,19 +1,31 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Check, X, FolderPlus, ChevronUp, ChevronDown } from 'lucide-react';
-import { Category } from '../types';
+import { Plus, Trash2, Edit2, Check, X, FolderPlus, ChevronUp, ChevronDown, Calendar } from 'lucide-react';
+import { Category, ViewMode } from '../types';
 
 interface SidebarProps {
   categories: Category[];
   activeId: string;
+  viewMode: ViewMode;
   onSelect: (id: string) => void;
+  onSelectToday: () => void;
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
   onMove: (id: string, direction: 'up' | 'down') => void;
 }
 
-const CategorySidebar: React.FC<SidebarProps> = ({ categories, activeId, onSelect, onAdd, onDelete, onRename, onMove }) => {
+const CategorySidebar: React.FC<SidebarProps> = ({ 
+  categories, 
+  activeId, 
+  viewMode,
+  onSelect, 
+  onSelectToday,
+  onAdd, 
+  onDelete, 
+  onRename, 
+  onMove 
+}) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -58,7 +70,20 @@ const CategorySidebar: React.FC<SidebarProps> = ({ categories, activeId, onSelec
 
   return (
     <aside className="w-full md:w-64 flex flex-col bg-white border-r border-slate-200 shrink-0 h-48 md:h-full">
-      <div className="p-4 flex items-center justify-between border-b border-slate-100">
+      {/* Primary Views */}
+      <div className="p-4 space-y-1">
+        <button
+          onClick={onSelectToday}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+            viewMode === 'today' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'hover:bg-slate-50 text-slate-600'
+          }`}
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="font-semibold text-sm">Today's Focus</span>
+        </button>
+      </div>
+
+      <div className="p-4 flex items-center justify-between border-t border-slate-100">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Categories</span>
         <button 
           onClick={() => setIsAdding(!isAdding)}
@@ -105,7 +130,7 @@ const CategorySidebar: React.FC<SidebarProps> = ({ categories, activeId, onSelec
           <div
             key={cat.id}
             className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all ${
-              activeId === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'
+              viewMode === 'category' && activeId === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'
             }`}
             onClick={() => onSelect(cat.id)}
           >

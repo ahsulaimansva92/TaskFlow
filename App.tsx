@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, FolderPlus, CheckCircle2, Circle, Sparkles, LayoutGrid, List as ListIcon, ChevronRight, LayoutDashboard } from 'lucide-react';
-import { Category, Task, Subtask, LayoutMode } from './types';
+import { Plus, Trash2, FolderPlus, CheckCircle2, Circle, Sparkles, LayoutGrid, List as ListIcon, ChevronRight, LayoutDashboard, Calendar } from 'lucide-react';
+import { Category, Task, Subtask, LayoutMode, ViewMode } from './types';
 import CategorySidebar from './components/CategorySidebar';
 import TaskBoard from './components/TaskBoard';
+import TodayWork from './components/TodayWork';
 
 const INITIAL_CATEGORIES: Category[] = [
   {
@@ -16,7 +17,7 @@ const INITIAL_CATEGORIES: Category[] = [
         name: 'Design System Implementation',
         completed: false,
         subtasks: [
-          { id: 'sub-1', name: 'Define color palette', completed: true },
+          { id: 'sub-1', name: 'Define color palette', completed: true, dueDate: new Date().toISOString().split('T')[0], todayOrder: 1 },
           { id: 'sub-2', name: 'Create typography scales', completed: false },
           { id: 'sub-3', name: 'Build button components', completed: false }
         ]
@@ -27,7 +28,7 @@ const INITIAL_CATEGORIES: Category[] = [
         completed: false,
         subtasks: [
           { id: 'sub-4', name: 'Setup Axios client', completed: true },
-          { id: 'sub-5', name: 'Implement Auth hooks', completed: false }
+          { id: 'sub-5', name: 'Implement Auth hooks', completed: false, dueDate: new Date().toISOString().split('T')[0], todayOrder: 2 }
         ]
       }
     ]
@@ -57,6 +58,7 @@ const App: React.FC = () => {
   });
   const [activeCategoryId, setActiveCategoryId] = useState<string>(categories[0]?.id || '');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('category');
 
   useEffect(() => {
     localStorage.setItem('taskflow_data', JSON.stringify(categories));
@@ -75,6 +77,7 @@ const App: React.FC = () => {
     };
     setCategories(prev => [...prev, newCategory]);
     setActiveCategoryId(newCategory.id);
+    setViewMode('category');
   };
 
   const handleDeleteCategory = (id: string) => {
@@ -104,6 +107,80 @@ const App: React.FC = () => {
     });
   };
 
+  const handleMoveTask = (categoryId: string, taskId: string, delta: number) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id !== categoryId) return cat;
+      const tasks = [...cat.tasks];
+      const oldIndex = tasks.findIndex(t => t.id === taskId);
+      const newIndex = oldIndex + delta;
+      if (newIndex < 0 || newIndex >= tasks.length) return cat;
+      const [movedTask] = tasks.splice(oldIndex, 1);
+      tasks.splice(newIndex, 0, movedTask);
+      return { ...cat, tasks };
+    }));
+  };
+
+  const handleMoveSubtask = (categoryId: string, taskId: string, subId: string, delta: number) => {
+    setCategories(prev => prev.map(cat => {
+      if (cat.id !== categoryId) return cat;
+      const tasks = cat.tasks.map(task => {
+        if (task.id !== taskId) return task;
+        const subtasks = [...task.subtasks];
+        const oldIndex = subtasks.findIndex(s => s.id === subId);
+        const newIndex = oldIndex + delta;
+        if (newIndex < 0 || newIndex >= subtasks.length) return task;
+        const [movedSub] = subtasks.splice(oldIndex, 1);
+        subtasks.splice(newIndex, 0, movedSub);
+        return { ...task, subtasks };
+      });
+      return { ...cat, tasks };
+    }));
+  };
+
+  const handleMoveTodaySubtask = (subId: string, direction: 'up' | 'down') => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayItems: { catId: string, taskId: string, sub: Subtask }[] = [];
+    
+    // Gather all current today subtasks
+    categories.forEach(cat => {
+      cat.tasks.forEach(task => {
+        task.subtasks.forEach(sub => {
+          if (sub.dueDate === today) {
+            todayItems.push({ catId: cat.id, taskId: task.id, sub });
+          }
+        });
+      });
+    });
+
+    // Sort by todayOrder or default to something consistent
+    todayItems.sort((a, b) => (a.sub.todayOrder || 0) - (b.sub.todayOrder || 0));
+
+    const index = todayItems.findIndex(item => item.sub.id === subId);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === todayItems.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const itemA = todayItems[index];
+    const itemB = todayItems[targetIndex];
+
+    // Ensure they both have orders
+    const orderA = itemA.sub.todayOrder || index;
+    const orderB = itemB.sub.todayOrder || targetIndex;
+
+    setCategories(prev => prev.map(cat => ({
+      ...cat,
+      tasks: cat.tasks.map(task => ({
+        ...task,
+        subtasks: task.subtasks.map(sub => {
+          if (sub.id === itemA.sub.id) return { ...sub, todayOrder: orderB };
+          if (sub.id === itemB.sub.id) return { ...sub, todayOrder: orderA };
+          return sub;
+        })
+      }))
+    })));
+  };
+
   const updateCategories = (updatedCategories: Category[]) => {
     setCategories(updatedCategories);
   };
@@ -114,7 +191,12 @@ const App: React.FC = () => {
       <CategorySidebar 
         categories={categories}
         activeId={activeCategoryId}
-        onSelect={setActiveCategoryId}
+        viewMode={viewMode}
+        onSelect={(id) => {
+          setActiveCategoryId(id);
+          setViewMode('category');
+        }}
+        onSelectToday={() => setViewMode('today')}
         onAdd={handleAddCategory}
         onDelete={handleDeleteCategory}
         onRename={handleUpdateCategoryName}
@@ -148,14 +230,22 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Board */}
+        {/* View Selection */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          {activeCategory ? (
+          {viewMode === 'today' ? (
+            <TodayWork 
+              categories={categories} 
+              onUpdate={updateCategories}
+              onMoveTodaySubtask={handleMoveTodaySubtask}
+            />
+          ) : activeCategory ? (
             <TaskBoard 
               category={activeCategory} 
               categories={categories}
               onUpdate={updateCategories}
               onRenameCategory={handleUpdateCategoryName}
+              onMoveTask={handleMoveTask}
+              onMoveSubtask={handleMoveSubtask}
               layoutMode={layoutMode}
             />
           ) : (

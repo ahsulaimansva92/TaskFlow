@@ -1,7 +1,21 @@
 
 import React, { useState } from 'react';
-import { Circle, CheckCircle2, Trash2, Plus, Sparkles, Loader2, X } from 'lucide-react';
-import { Task, Subtask } from '../types';
+import { 
+  Circle, 
+  CheckCircle2, 
+  Trash2, 
+  Plus, 
+  Sparkles, 
+  Loader2, 
+  X, 
+  ChevronUp, 
+  ChevronDown, 
+  ChevronLeft, 
+  ChevronRight,
+  Move,
+  Calendar
+} from 'lucide-react';
+import { Task, Subtask, LayoutMode } from '../types';
 import { generateSubtasksForTask } from '../geminiService';
 
 interface TaskItemProps {
@@ -9,11 +23,29 @@ interface TaskItemProps {
   categoryName: string;
   onUpdate: (task: Task) => void;
   onDelete: (id: string) => void;
+  onMove: (delta: number) => void;
+  onMoveSubtask: (subId: string, delta: number) => void;
+  taskIndex: number;
+  totalTasks: number;
+  gridCols: number;
+  layoutMode: LayoutMode;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, categoryName, onUpdate, onDelete }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ 
+  task, 
+  categoryName, 
+  onUpdate, 
+  onDelete, 
+  onMove, 
+  onMoveSubtask,
+  taskIndex,
+  totalTasks,
+  gridCols,
+  layoutMode
+}) => {
   const [newSubtaskName, setNewSubtaskName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showOrderControls, setShowOrderControls] = useState(false);
 
   const toggleTask = () => {
     onUpdate({ ...task, completed: !task.completed });
@@ -22,6 +54,13 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, categoryName, onUpdate, onDel
   const toggleSubtask = (subId: string) => {
     const updatedSubtasks = task.subtasks.map(s => 
       s.id === subId ? { ...s, completed: !s.completed } : s
+    );
+    onUpdate({ ...task, subtasks: updatedSubtasks });
+  };
+
+  const updateSubtaskDate = (subId: string, date: string) => {
+    const updatedSubtasks = task.subtasks.map(s => 
+      s.id === subId ? { ...s, dueDate: date || undefined } : s
     );
     onUpdate({ ...task, subtasks: updatedSubtasks });
   };
@@ -65,10 +104,48 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, categoryName, onUpdate, onDel
   const subtasksTotal = task.subtasks.length;
   const isDone = task.completed || (subtasksTotal > 0 && subtasksCompleted === subtasksTotal);
 
+  // Check movement boundaries
+  const canMoveUp = taskIndex >= gridCols;
+  const canMoveDown = taskIndex + gridCols < totalTasks;
+  const canMoveLeft = taskIndex % gridCols !== 0;
+  const canMoveRight = (taskIndex + 1) % gridCols !== 0 && taskIndex < totalTasks - 1;
+
+  // Simple reordering for list mode
+  const canMovePrev = taskIndex > 0;
+  const canMoveNext = taskIndex < totalTasks - 1;
+
+  const isToday = (dateStr: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateStr === today;
+  };
+
   return (
-    <div className={`bg-white border-2 rounded-2xl overflow-hidden transition-all duration-300 ${
-      isDone ? 'border-indigo-50 shadow-sm opacity-90' : 'border-slate-100 shadow-md hover:shadow-xl hover:border-indigo-100'
-    }`}>
+    <div 
+      className={`group relative bg-white border-2 rounded-2xl overflow-hidden transition-all duration-300 ${
+        isDone ? 'border-indigo-50 shadow-sm opacity-90' : 'border-slate-100 shadow-md hover:shadow-xl hover:border-indigo-100'
+      }`}
+      onMouseEnter={() => setShowOrderControls(true)}
+      onMouseLeave={() => setShowOrderControls(false)}
+    >
+      {/* Order Controls Overlay (Visible on Hover) */}
+      <div className={`absolute top-2 right-12 z-10 flex gap-1 transition-opacity duration-200 ${showOrderControls ? 'opacity-100' : 'opacity-0'}`}>
+        {layoutMode === 'grid' ? (
+          <div className="grid grid-cols-3 grid-rows-2 bg-white/90 backdrop-blur shadow-lg border border-slate-200 rounded-lg p-1">
+            <div />
+            <button onClick={() => onMove(-gridCols)} disabled={!canMoveUp} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
+            <div />
+            <button onClick={() => onMove(-1)} disabled={!canMoveLeft} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => onMove(gridCols)} disabled={!canMoveDown} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
+            <button onClick={() => onMove(1)} disabled={!canMoveRight} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+        ) : (
+          <div className="flex bg-white/90 backdrop-blur shadow-lg border border-slate-200 rounded-lg p-1">
+            <button onClick={() => onMove(-1)} disabled={!canMovePrev} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
+            <button onClick={() => onMove(1)} disabled={!canMoveNext} className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
+          </div>
+        )}
+      </div>
+
       {/* Task Header */}
       <div className="p-4 flex items-start justify-between gap-3 border-b border-slate-50">
         <div className="flex items-start gap-3">
@@ -112,30 +189,67 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, categoryName, onUpdate, onDel
         </div>
 
         <div className="space-y-2">
-          {task.subtasks.map((sub) => (
+          {task.subtasks.map((sub, sIdx) => (
             <div 
               key={sub.id} 
-              className="group flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm"
+              className="group/sub bg-white p-3 rounded-xl border border-slate-100 shadow-sm"
             >
-              <div 
-                className="flex items-center gap-3 cursor-pointer flex-1"
-                onClick={() => toggleSubtask(sub.id)}
-              >
-                {sub.completed ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                ) : (
-                  <Circle className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 shrink-0" />
-                )}
-                <span className={`text-sm ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                  {sub.name}
-                </span>
+              <div className="flex items-start justify-between">
+                <div 
+                  className="flex items-center gap-3 cursor-pointer flex-1"
+                  onClick={() => toggleSubtask(sub.id)}
+                >
+                  {sub.completed ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-slate-300 group-hover/sub:text-indigo-400 shrink-0" />
+                  )}
+                  <span className={`text-sm font-medium ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                    {sub.name}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100 transition-opacity">
+                  <div className="flex flex-col">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onMoveSubtask(sub.id, -1); }} 
+                      disabled={sIdx === 0}
+                      className="p-0.5 text-slate-300 hover:text-indigo-500 disabled:opacity-0"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onMoveSubtask(sub.id, 1); }} 
+                      disabled={sIdx === task.subtasks.length - 1}
+                      className="p-0.5 text-slate-300 hover:text-indigo-500 disabled:opacity-0"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); removeSubtask(sub.id); }}
+                    className="p-1 text-slate-300 hover:text-rose-500 transition-opacity"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <button 
-                onClick={() => removeSubtask(sub.id)}
-                className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-opacity"
-              >
-                <X className="w-3 h-3" />
-              </button>
+
+              {/* Subtask Meta - Due Date */}
+              <div className="mt-2 pl-7 flex items-center gap-2">
+                <div className="relative group/date flex items-center gap-1.5">
+                  <Calendar className={`w-3.5 h-3.5 ${sub.dueDate ? (isToday(sub.dueDate) ? 'text-amber-500' : 'text-indigo-500') : 'text-slate-300'}`} />
+                  <input 
+                    type="date"
+                    value={sub.dueDate || ''}
+                    onChange={(e) => updateSubtaskDate(sub.id, e.target.value)}
+                    className="text-[10px] font-semibold text-slate-500 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600 focus:text-indigo-600 transition-colors uppercase"
+                  />
+                  {sub.dueDate && isToday(sub.dueDate) && (
+                    <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md font-bold uppercase animate-pulse">Today</span>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
 
