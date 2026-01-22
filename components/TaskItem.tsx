@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Circle, 
   CheckCircle2, 
@@ -13,7 +13,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   Repeat,
-  Calendar
+  Calendar,
+  Edit2,
+  Check
 } from 'lucide-react';
 import { Task, Subtask, LayoutMode } from '../types';
 import { generateSubtasksForTask } from '../geminiService';
@@ -46,6 +48,52 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [newSubtaskName, setNewSubtaskName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showOrderControls, setShowOrderControls] = useState(false);
+  
+  // Task Editing State
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [taskNameEditValue, setTaskNameEditValue] = useState(task.name);
+  const taskInputRef = useRef<HTMLInputElement>(null);
+
+  // Subtask Editing State
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [subNameEditValue, setSubNameEditValue] = useState('');
+  const subInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingTask && taskInputRef.current) {
+      taskInputRef.current.focus();
+      taskInputRef.current.select();
+    }
+  }, [isEditingTask]);
+
+  useEffect(() => {
+    if (editingSubId && subInputRef.current) {
+      subInputRef.current.focus();
+      subInputRef.current.select();
+    }
+  }, [editingSubId]);
+
+  const handleSaveTaskName = () => {
+    if (taskNameEditValue.trim() && taskNameEditValue !== task.name) {
+      onUpdate({ ...task, name: taskNameEditValue.trim() });
+    }
+    setIsEditingTask(false);
+  };
+
+  const handleStartEditSubtask = (sub: Subtask) => {
+    setEditingSubId(sub.id);
+    setSubNameEditValue(sub.name);
+  };
+
+  const handleSaveSubtaskName = () => {
+    if (editingSubId && subNameEditValue.trim()) {
+      const updatedSubtasks = task.subtasks.map(s => 
+        s.id === editingSubId ? { ...s, name: subNameEditValue.trim() } : s
+      );
+      onUpdate({ ...task, subtasks: updatedSubtasks });
+    }
+    setEditingSubId(null);
+  };
 
   const toggleTask = () => {
     onUpdate({ ...task, completed: !task.completed });
@@ -145,17 +193,42 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
       {/* Task Header */}
       <div className="p-4 flex items-start justify-between gap-3 border-b border-slate-50">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 flex-1">
           <button 
             onClick={toggleTask}
             className={`mt-1 shrink-0 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}`}
           >
             {task.completed ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
           </button>
-          <div>
-            <h3 className={`font-bold text-lg leading-tight transition-all ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-              {task.name}
-            </h3>
+          <div className="flex-1 min-w-0">
+            {isEditingTask ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={taskInputRef}
+                  type="text"
+                  value={taskNameEditValue}
+                  onChange={(e) => setTaskNameEditValue(e.target.value)}
+                  onBlur={handleSaveTaskName}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTaskName();
+                    if (e.key === 'Escape') setIsEditingTask(false);
+                  }}
+                  className="w-full bg-slate-50 border border-indigo-200 rounded px-2 py-0.5 text-lg font-bold outline-none"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group/title">
+                <h3 className={`font-bold text-lg leading-tight transition-all truncate ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                  {task.name}
+                </h3>
+                <button 
+                  onClick={() => setIsEditingTask(true)}
+                  className="opacity-0 group-hover/title:opacity-100 p-1 text-slate-300 hover:text-indigo-600 transition-opacity"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             {subtasksTotal > 0 && (
               <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-wider">
                 {subtasksCompleted} / {subtasksTotal} Subtasks Done
@@ -192,23 +265,46 @@ const TaskItem: React.FC<TaskItemProps> = ({
               className="group/sub bg-white p-3 rounded-xl border border-slate-100 shadow-sm"
             >
               <div className="flex items-start justify-between">
-                <div 
-                  className="flex items-center gap-3 cursor-pointer flex-1"
-                  onClick={() => toggleSubtask(sub.id)}
-                >
-                  {sub.completed ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <button onClick={() => toggleSubtask(sub.id)} className="shrink-0">
+                    {sub.completed ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <Circle className="w-4 h-4 text-slate-300 group-hover/sub:text-indigo-400" />
+                    )}
+                  </button>
+                  
+                  {editingSubId === sub.id ? (
+                    <input
+                      ref={subInputRef}
+                      type="text"
+                      value={subNameEditValue}
+                      onChange={(e) => setSubNameEditValue(e.target.value)}
+                      onBlur={handleSaveSubtaskName}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveSubtaskName();
+                        if (e.key === 'Escape') setEditingSubId(null);
+                      }}
+                      className="flex-1 bg-slate-50 border border-indigo-200 rounded px-2 py-0.5 text-sm font-medium outline-none"
+                    />
                   ) : (
-                    <Circle className="w-4 h-4 text-slate-300 group-hover/sub:text-indigo-400 shrink-0" />
+                    <div className="flex items-center gap-2 group/subtext min-w-0">
+                      <span className={`text-sm font-medium truncate ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                        {sub.name}
+                      </span>
+                      <button 
+                        onClick={() => handleStartEditSubtask(sub)}
+                        className="opacity-0 group-hover/subtext:opacity-100 p-0.5 text-slate-300 hover:text-indigo-600 transition-opacity"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   )}
-                  <span className={`text-sm font-medium ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                    {sub.name}
-                  </span>
                 </div>
                 
                 <div className="flex items-center gap-1.5 opacity-0 group-hover/sub:opacity-100 transition-opacity">
                   <button 
-                    onClick={(e) => { e.stopPropagation(); toggleDaily(sub.id); }}
+                    onClick={() => toggleDaily(sub.id)}
                     className={`p-1 rounded-md transition-colors ${sub.isDaily ? 'bg-indigo-100 text-indigo-600' : 'text-slate-300 hover:text-indigo-400'}`}
                     title="Mark as Daily Recurring"
                   >
@@ -216,14 +312,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   </button>
                   <div className="flex flex-col">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); onMoveSubtask(sub.id, -1); }} 
+                      onClick={() => onMoveSubtask(sub.id, -1)} 
                       disabled={sIdx === 0}
                       className="p-0.5 text-slate-300 hover:text-indigo-500 disabled:opacity-0"
                     >
                       <ChevronUp className="w-3 h-3" />
                     </button>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); onMoveSubtask(sub.id, 1); }} 
+                      onClick={() => onMoveSubtask(sub.id, 1)} 
                       disabled={sIdx === task.subtasks.length - 1}
                       className="p-0.5 text-slate-300 hover:text-indigo-500 disabled:opacity-0"
                     >
@@ -231,7 +327,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     </button>
                   </div>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); removeSubtask(sub.id); }}
+                    onClick={() => removeSubtask(sub.id)}
                     className="p-1 text-slate-300 hover:text-rose-500 transition-opacity"
                   >
                     <X className="w-3.5 h-3.5" />

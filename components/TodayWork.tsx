@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Category, Subtask, Task } from '../types';
-import { Calendar, CheckCircle2, Circle, Clock, Sparkles, ArrowUp, ArrowDown, Repeat } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Clock, Sparkles, ArrowUp, ArrowDown, Repeat, Edit2 } from 'lucide-react';
 
 interface TodayWorkProps {
   categories: Category[];
@@ -11,6 +11,18 @@ interface TodayWorkProps {
 
 const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveTodaySubtask }) => {
   const today = new Date().toISOString().split('T')[0];
+  
+  // Local state for editing subtasks in Today view
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [subNameEditValue, setSubNameEditValue] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingSubId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingSubId]);
 
   interface FlatItem {
     category: Category;
@@ -55,6 +67,33 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
   // Sort daily tasks by completion status as well
   dailyTasks.sort((a, b) => a.isCompletedToday === b.isCompletedToday ? 0 : (a.isCompletedToday ? 1 : -1));
 
+  const handleStartEdit = (sub: Subtask) => {
+    setEditingSubId(sub.id);
+    setSubNameEditValue(sub.name);
+  };
+
+  const handleSaveSubName = (catId: string, taskId: string, subId: string) => {
+    if (subNameEditValue.trim()) {
+      const nextCategories = categories.map(c => {
+        if (c.id !== catId) return c;
+        return {
+          ...c,
+          tasks: c.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            return {
+              ...t,
+              subtasks: t.subtasks.map(s => 
+                s.id === subId ? { ...s, name: subNameEditValue.trim() } : s
+              )
+            };
+          })
+        };
+      });
+      onUpdate(nextCategories);
+    }
+    setEditingSubId(null);
+  };
+
   const toggleTodayItem = (catId: string, taskId: string, subId: string, isDaily: boolean) => {
     const nextCategories = categories.map(c => {
       if (c.id !== catId) return c;
@@ -72,7 +111,6 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
                 return { 
                   ...s, 
                   lastCompletedDate: wasCompleted ? undefined : today,
-                  // We also sync regular completed state for consistency in project view
                   completed: !wasCompleted 
                 };
               } else {
@@ -172,11 +210,35 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
               <Repeat className="w-2.5 h-2.5" /> Daily
             </span>}
           </div>
-          <h4 className={`text-xl font-bold truncate tracking-tight transition-colors ${
-            isCompletedToday ? 'text-slate-300 line-through' : 'text-slate-800'
-          }`}>
-            {subtask.name}
-          </h4>
+          
+          {editingSubId === subtask.id ? (
+            <input
+              ref={editInputRef}
+              type="text"
+              value={subNameEditValue}
+              onChange={(e) => setSubNameEditValue(e.target.value)}
+              onBlur={() => handleSaveSubName(category.id, task.id, subtask.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveSubName(category.id, task.id, subtask.id);
+                if (e.key === 'Escape') setEditingSubId(null);
+              }}
+              className="w-full bg-slate-50 border border-indigo-200 rounded px-2 py-0.5 text-xl font-bold outline-none"
+            />
+          ) : (
+            <div className="flex items-center gap-2 group/title">
+              <h4 className={`text-xl font-bold truncate tracking-tight transition-colors ${
+                isCompletedToday ? 'text-slate-300 line-through' : 'text-slate-800'
+              }`}>
+                {subtask.name}
+              </h4>
+              <button 
+                onClick={() => handleStartEdit(subtask)}
+                className="opacity-0 group-hover/title:opacity-100 p-1 text-slate-300 hover:text-indigo-600 transition-opacity"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Reschedule Control (Only for non-daily) */}
