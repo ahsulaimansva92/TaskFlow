@@ -5,20 +5,15 @@ import {
   CheckCircle2, 
   Trash2, 
   Plus, 
-  Sparkles, 
-  Loader2, 
   X, 
   ChevronUp, 
   ChevronDown, 
   ChevronLeft, 
   ChevronRight,
   Repeat,
-  Calendar,
-  Edit2,
-  Check
+  Calendar
 } from 'lucide-react';
 import { Task, Subtask, LayoutMode } from '../types';
-import { generateSubtasksForTask } from '../geminiService';
 
 interface TaskItemProps {
   task: Task;
@@ -46,7 +41,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
   layoutMode
 }) => {
   const [newSubtaskName, setNewSubtaskName] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showOrderControls, setShowOrderControls] = useState(false);
   
   // Task Editing State
@@ -138,23 +132,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
     onUpdate({ ...task, subtasks: task.subtasks.filter(s => s.id !== subId) });
   };
 
-  const handleAiSuggest = async () => {
-    setIsGenerating(true);
-    try {
-      const suggestions = await generateSubtasksForTask(task.name, categoryName);
-      if (suggestions.length > 0) {
-        const newSubs: Subtask[] = suggestions.map((name, idx) => ({
-          id: `ai-${Date.now()}-${idx}`,
-          name,
-          completed: false
-        }));
-        onUpdate({ ...task, subtasks: [...task.subtasks, ...newSubs] });
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   const subtasksCompleted = task.subtasks.filter(s => s.completed).length;
   const subtasksTotal = task.subtasks.length;
   const isDone = task.completed || (subtasksTotal > 0 && subtasksCompleted === subtasksTotal);
@@ -217,16 +194,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-2 group/title">
-                <h3 className={`font-bold text-lg leading-tight transition-all truncate ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+              <div className="group/title min-w-0">
+                <h3 
+                  onClick={() => setIsEditingTask(true)}
+                  className={`font-bold text-lg leading-tight transition-all truncate cursor-pointer hover:text-indigo-600 ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}
+                >
                   {task.name}
                 </h3>
-                <button 
-                  onClick={() => setIsEditingTask(true)}
-                  className="opacity-0 group-hover/title:opacity-100 p-1 text-slate-300 hover:text-indigo-600 transition-opacity"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
               </div>
             )}
             {subtasksTotal > 0 && (
@@ -246,18 +220,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
       {/* Subtasks Section */}
       <div className="bg-slate-50/50 p-4 space-y-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtasks checklist</span>
-          <button 
-            onClick={handleAiSuggest}
-            disabled={isGenerating}
-            className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
-          >
-            {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-            AI AUTO-GENERATE
-          </button>
-        </div>
-
         <div className="space-y-2">
           {task.subtasks.map((sub, sIdx) => (
             <div 
@@ -288,16 +250,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
                       className="flex-1 bg-slate-50 border border-indigo-200 rounded px-2 py-0.5 text-sm font-medium outline-none"
                     />
                   ) : (
-                    <div className="flex items-center gap-2 group/subtext min-w-0">
-                      <span className={`text-sm font-medium truncate ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                    <div className="group/subtext min-w-0">
+                      <span 
+                        onClick={() => handleStartEditSubtask(sub)}
+                        className={`text-sm font-medium truncate cursor-pointer hover:text-indigo-600 transition-colors block ${sub.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}
+                      >
                         {sub.name}
                       </span>
-                      <button 
-                        onClick={() => handleStartEditSubtask(sub)}
-                        className="opacity-0 group-hover/subtext:opacity-100 p-0.5 text-slate-300 hover:text-indigo-600 transition-opacity"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
                     </div>
                   )}
                 </div>
@@ -362,16 +321,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </div>
           ))}
 
-          {task.subtasks.length === 0 && !isGenerating && (
+          {task.subtasks.length === 0 && (
             <div className="text-center py-4 text-slate-400 text-xs italic">
               No subtasks added yet
-            </div>
-          )}
-
-          {isGenerating && (
-            <div className="flex items-center justify-center py-4 text-indigo-400">
-               <Loader2 className="w-5 h-5 animate-spin mr-2" />
-               <span className="text-xs font-medium animate-pulse">Consulting Gemini for steps...</span>
             </div>
           )}
         </div>

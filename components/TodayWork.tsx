@@ -225,18 +225,15 @@ const TodayWork: React.FC<TodayWorkProps> = ({ categories, onUpdate, onMoveToday
               className="w-full bg-slate-50 border border-indigo-200 rounded px-2 py-0.5 text-xl font-bold outline-none"
             />
           ) : (
-            <div className="flex items-center gap-2 group/title">
-              <h4 className={`text-xl font-bold truncate tracking-tight transition-colors ${
-                isCompletedToday ? 'text-slate-300 line-through' : 'text-slate-800'
-              }`}>
+            <div className="group/title min-w-0">
+              <h4 
+                onClick={() => handleStartEdit(subtask)}
+                className={`text-xl font-bold truncate tracking-tight transition-colors cursor-pointer hover:text-indigo-600 ${
+                  isCompletedToday ? 'text-slate-300 line-through' : 'text-slate-800'
+                }`}
+              >
                 {subtask.name}
               </h4>
-              <button 
-                onClick={() => handleStartEdit(subtask)}
-                className="opacity-0 group-hover/title:opacity-100 p-1 text-slate-300 hover:text-indigo-600 transition-opacity"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
             </div>
           )}
         </div>
